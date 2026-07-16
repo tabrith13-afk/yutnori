@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>윷놀이</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 { font-size: 2.8rem; text-align: center; color: #f8c94f; text-shadow: 0 2px 8px #0006; letter-spacing: 6px; }
+  .subtitle { color: #aaa; font-size: 0.85rem; text-align: center; margin-bottom: 16px; }
+
+  /* ── 화면 전환 ── */
+  .screen { display: none; width: 100%; max-width: 1400px; padding: 20px; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; }
+
+  /* ── 시작 화면 ── */
+  #setup-screen { gap: 18px; padding-top: 40px; }
+  .setup-card {
+    background: #16213e;
+    border: 1px solid #2a2a5e;
+    border-radius: 16px;
+    padding: 36px 44px;
+    width: 100%;
+    max-width: 560px;
+  }
+  .setup-card h2 { font-size: 1.4rem; color: #f8c94f; margin-bottom: 20px; text-align: center; }
+  .player-count-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .cnt-btn {
+    padding: 16px 0;
+    border: 2px solid #2a2a5e;
+    border-radius: 12px;
+    background: #0f3460;
+    color: #ccc;
+    font-size: 1.4rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .cnt-btn:hover { border-color: #f8c94f; color: #f8c94f; }
+  .cnt-btn.selected { border-color: #f8c94f; background: #2a1d00; color: #f8c94f; }
+  .player-names { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .player-names input {
+    padding: 12px 18px;
+    border-radius: 10px;
+    border: 1px solid #2a2a5e;
+    background: #0d1b2a;
+    color: #eee;
+    font-size: 1.1rem;
+    outline: none;
+    transition: border .2s;
+    flex: 1;
+  }
+  .player-names input:focus { border-color: #f8c94f; }
+  .team-color-dot {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .start-btn {
+    padding: 18px 60px;
+    background: linear-gradient(135deg, #e67e22, #f8c94f);
+    color: #1a1a2e;
+    font-size: 1.35rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    letter-spacing: 3px;
+    transition: transform .15s, box-shadow .15s;
+    box-shadow: 0 4px 18px #f8c94f44;
+  }
+  .start-btn:hover { transform: scale(1.04); box-shadow: 0 6px 24px #f8c94f66; }
+
+  /* ── 규칙 버튼 ── */
+  .rules-btn {
+    padding: 8px 22px;
+    background: transparent;
+    color: #aaa;
+    border: 1px solid #444;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all .2s;
+  }
+  .rules-btn:hover { color: #f8c94f; border-color: #f8c94f; }
+
+  /* ── 게임 화면 ── */
+  #game-screen { flex-direction: row; align-items: flex-start; gap: 24px; flex-wrap: wrap; padding-top: 16px; }
+
+  /* ── 보드 ── */
+  .board-wrap { flex: 1 1 500px; display: flex; flex-direction: column; align-items: center; }
+  #board-svg { width: 100%; max-width: 680px; height: auto; }
+
+  /* ── 사이드 패널 ── */
+  .side-panel { flex: 0 0 340px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── 현재 턴 ── */
+  .turn-card {
+    background: #16213e;
+    border-radius: 14px;
+    padding: 14px 16px;
+    border: 1px solid #2a2a5e;
+    text-align: center;
+  }
+  .turn-label { font-size: 0.95rem; color: #888; margin-bottom: 6px; }
+  .turn-name { font-size: 1.9rem; font-weight: bold; }
+  .turn-sub { font-size: 1rem; color: #aaa; margin-top: 6px; }
+
+  /* ── 윷 던지기 오버레이 ── */
+  #throw-overlay {
+    position: fixed; inset: 0;
+    background: rgba(5,8,20,0.88);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    flex-direction: column;
+    gap: 0;
+  }
+  #throw-overlay.open { display: flex; }
+  #throw-svg-wrap {
+    width: min(500px, 90vw);
+    height: min(500px, 90vw);
+    position: relative;
+  }
+  #throw-svg-wrap svg { width: 100%; height: 100%; }
+  #overlay-result {
+    font-size: clamp(2.8rem, 8vw, 5rem);
+    font-weight: bold;
+    color: #f8c94f;
+    letter-spacing: 6px;
+    text-shadow: 0 0 30px #f8c94f88;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity .35s, transform .35s;
+    text-align: center;
+    margin-top: 12px;
+  }
+  #overlay-result.show { opacity: 1; transform: scale(1); }
+  #overlay-sub {
+    font-size: 1.1rem;
+    color: #aaa;
+    margin-top: 8px;
+    opacity: 0;
+    transition: opacity .4s .15s;
+    text-align: center;
+  }
+  #overlay-sub.show { opacity: 1; }
+
+  /* ── 윷 던지기 ── */
+  .throw-card {
+    background: #16213e;
+    border-radius: 14px;
+    padding: 16px;
+    border: 1px solid #2a2a5e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .yut-display { display: flex; gap: 12px; justify-content: center; min-height: 80px; align-items: center; }
+  .yut-stick {
+    width: 26px; height: 90px;
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px;
+    transition: transform .3s;
+  }
+  .yut-stick.flat { background: #c8a96e; border: 2px solid #a07840; }
+  .yut-stick.round { background: #3d2b1f; border: 2px solid #5c3d2e; }
+  .result-badge {
+    font-size: 2.2rem;
+    font-weight: bold;
+    color: #f8c94f;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    letter-spacing: 3px;
+  }
+  .throw-btn {
+    padding: 16px 44px;
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: transform .15s, box-shadow .15s;
+    box-shadow: 0 3px 12px #e74c3c44;
+    width: 100%;
+  }
+  .throw-btn:hover:not(:disabled) { transform: scale(1.05); }
+  .throw-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  /* ── 말 선택 ── */
+  .piece-card {
+    background: #16213e;
+    border-radius: 14px;
+    padding: 14px 16px;
+    border: 1px solid #2a2a5e;
+  }
+  .piece-card h3 { font-size: 1rem; color: #aaa; margin-bottom: 12px; text-align: center; }
+  .piece-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .piece-btn {
+    padding: 10px 20px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all .2s;
+    font-weight: bold;
+  }
+  .piece-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── 점수판 ── */
+  .score-card {
+    background: #16213e;
+    border-radius: 14px;
+    padding: 18px 20px;
+    border: 1px solid #2a2a5e;
+  }
+  .score-card h3 { font-size: 1rem; color: #aaa; margin-bottom: 12px; text-align: center; }
+  .score-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #1e2a3a;
+    font-size: 1.05rem;
+  }
+  .score-row:last-child { border-bottom: none; }
+  .score-name { display: flex; align-items: center; gap: 8px; }
+  .color-dot { width: 13px; height: 13px; border-radius: 50%; }
+  .score-val { font-weight: bold; color: #f8c94f; font-size: 1.1rem; }
+
+  /* ── 로그 ── */
+  .log-card {
+    background: #16213e;
+    border-radius: 14px;
+    padding: 16px 20px;
+    border: 1px solid #2a2a5e;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .log-card h3 { font-size: 1rem; color: #aaa; margin-bottom: 10px; }
+  .log-item { font-size: 0.92rem; color: #ccc; padding: 4px 0; border-bottom: 1px solid #1e2a3a; }
+  .log-item:last-child { border-bottom: none; }
+
+  /* ── 규칙 모달 ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: #000a;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #16213e;
+    border: 1px solid #2a2a5e;
+    border-radius: 18px;
+    padding: 28px;
+    max-width: 520px;
+    width: 92%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+  }
+  .modal h2 { color: #f8c94f; font-size: 1.2rem; margin-bottom: 16px; text-align: center; }
+  .modal-close {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; color: #aaa;
+    font-size: 1.4rem; cursor: pointer;
+  }
+  .rule-section { margin-bottom: 14px; }
+  .rule-section h3 { color: #f8c94f; font-size: 0.95rem; margin-bottom: 6px; }
+  .rule-section p, .rule-section li { font-size: 0.88rem; color: #ccc; line-height: 1.7; }
+  .rule-section ul { padding-left: 16px; }
+  .yut-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 6px; }
+  .yut-table th { background: #0f3460; color: #f8c94f; padding: 6px 8px; text-align: center; }
+  .yut-table td { padding: 5px 8px; text-align: center; border-bottom: 1px solid #2a2a5e; color: #ccc; }
+
+  /* ── 승리 모달 ── */
+  .win-modal {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border: 2px solid #f8c94f;
+    border-radius: 20px;
+    padding: 36px;
+    text-align: center;
+    max-width: 360px;
+    width: 92%;
+  }
+  .win-modal h2 { font-size: 2rem; color: #f8c94f; margin-bottom: 8px; }
+  .win-modal p { color: #ccc; margin-bottom: 20px; }
+  .win-modal .restart-btn {
+    padding: 12px 36px;
+    background: linear-gradient(135deg, #e67e22, #f8c94f);
+    color: #1a1a2e;
+    font-size: 1rem;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform .15s;
+  }
+  .win-modal .restart-btn:hover { transform: scale(1.05); }
+
+  /* ── 상단바 ── */
+  .top-bar { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 1400px; padding: 16px 20px 4px; }
+  .bonus-queue { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .bonus-badge {
+    background: #2a1d00; border: 1px solid #f8c94f;
+    color: #f8c94f; border-radius: 8px;
+    padding: 3px 10px; font-size: 0.8rem; font-weight: bold;
+  }
+
+  @media (max-width: 900px) {
+    #game-screen { flex-direction: column; }
+    .side-panel { flex: none; width: 100%; }
+    h1 { font-size: 1.8rem; }
+    #board-svg { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 상단 타이틀 -->
+<div style="padding: 20px 16px 4px; text-align:center;">
+  <h1>🎋 윷놀이</h1>
+  <p class="subtitle">전통 보드게임 | 최대 8명</p>
+</div>
+
+<!-- ───────────── 설정 화면 ───────────── -->
+<div id="setup-screen" class="screen active">
+  <div class="setup-card">
+    <h2>참여 인원을 선택하세요</h2>
+    <div class="player-count-grid" id="cnt-grid"></div>
+    <div class="player-names" id="name-inputs"></div>
+  </div>
+  <div style="display:flex; gap:12px; flex-wrap:wrap; justify-content:center;">
+    <button class="start-btn" onclick="startGame()">게임 시작</button>
+    <button class="rules-btn" onclick="openRules()">📖 규칙 보기</button>
+  </div>
+</div>
+
+<!-- ───────────── 게임 화면 ───────────── -->
+<div class="top-bar" id="top-bar" style="display:none;">
+  <button class="rules-btn" onclick="openRules()" style="font-size:.8rem; padding:6px 14px;">📖 규칙</button>
+  <div class="bonus-queue" id="bonus-queue"></div>
+  <button class="rules-btn" onclick="goSetup()" style="font-size:.8rem; padding:6px 14px;">↩ 처음으로</button>
+</div>
+
+<div id="game-screen" class="screen">
+  <!-- 보드 -->
+  <div class="board-wrap">
+    <svg id="board-svg" viewBox="0 0 660 660" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+
+  <!-- 사이드 패널 -->
+  <div class="side-panel">
+    <div class="turn-card">
+      <div class="turn-label">현재 차례</div>
+      <div class="turn-name" id="turn-name">-</div>
+      <div class="turn-sub" id="turn-sub">윷을 던지세요</div>
+    </div>
+
+    <div class="throw-card">
+      <div class="yut-display" id="yut-display">
+        <span style="color:#666; font-size:0.85rem;">던지기 전</span>
+      </div>
+      <div class="result-badge" id="result-badge"></div>
+      <button class="throw-btn" id="throw-btn" onclick="throwYut()">🎋 윷 던지기</button>
+    </div>
+
+    <div class="piece-card" id="piece-card" style="display:none;">
+      <h3>움직일 말을 선택하세요</h3>
+      <div class="piece-list" id="piece-list"></div>
+    </div>
+
+    <div class="score-card">
+      <h3>점수판</h3>
+      <div id="score-board"></div>
+    </div>
+
+    <div class="log-card">
+      <h3>기록</h3>
+      <div id="game-log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── 규칙 모달 ───────────── -->
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeRules()">✕</button>
+    <h2>📖 윷놀이 규칙</h2>
+    <div class="rule-section">
+      <h3>🎯 목표</h3>
+      <p>4개의 말을 모두 출발점에서 출발해 보드를 한 바퀴 돌아 먼저 골인시키는 팀이 이깁니다.</p>
+    </div>
+    <div class="rule-section">
+      <h3>🎋 윷 결과</h3>
+      <table class="yut-table">
+        <tr><th>이름</th><th>엎어진 수</th><th>이동 칸</th><th>특징</th></tr>
+        <tr><td>도</td><td>1개</td><td>1칸</td><td></td></tr>
+        <tr><td>개</td><td>2개</td><td>2칸</td><td></td></tr>
+        <tr><td>걸</td><td>3개</td><td>3칸</td><td></td></tr>
+        <tr><td>윷</td><td>4개</td><td>4칸</td><td>한 번 더!</td></tr>
+        <tr><td>모</td><td>0개</td><td>5칸</td><td>한 번 더!</td></tr>
+        <tr><td>빽도</td><td>1개(특수)</td><td>-1칸</td><td>뒤로 이동</td></tr>
+      </table>
+    </div>
+    <div class="rule-section">
+      <h3>📌 주요 규칙</h3>
+      <ul>
+        <li><b>윷 또는 모</b>가 나오면 한 번 더 던질 수 있습니다.</li>
+        <li>상대 말을 잡으면 한 번 더 던질 수 있습니다.</li>
+        <li>같은 편 말 위에 내 말이 오면 <b>업어서</b> 함께 이동할 수 있습니다.</li>
+        <li>모든 말이 골인해야 승리합니다.</li>
+      </ul>
+    </div>
+    <div class="rule-section">
+      <h3>🗺 지름길</h3>
+      <ul>
+        <li><b>10번 칸</b> (오른쪽 모서리): 대각선 지름길로 진입 가능</li>
+        <li><b>20번 칸</b> (위 모서리): 대각선 지름길로 진입 가능</li>
+        <li><b>25번 칸</b> (중앙): 지름길이 교차하는 지점</li>
+      </ul>
+    </div>
+    <div style="text-align:center; margin-top:16px;">
+      <button class="start-btn" style="padding:10px 32px; font-size:0.95rem;" onclick="closeRules()">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────── 윷 던지기 오버레이 ───────────── -->
+<div id="throw-overlay">
+  <div id="throw-svg-wrap">
+    <svg id="throw-svg" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div id="overlay-result"></div>
+  <div id="overlay-sub"></div>
+</div>
+
+<!-- ───────────── 승리 모달 ───────────── -->
+<div class="modal-overlay" id="win-modal">
+  <div class="win-modal">
+    <h2>🏆</h2>
+    <h2 id="win-title">승리!</h2>
+    <p id="win-desc"></p>
+    <button class="restart-btn" onclick="goSetup()">다시 하기</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+//  상수 & 설정
+// ══════════════════════════════════════════
+const COLORS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e91e63'];
+const COLOR_NAMES = ['빨강','파랑','초록','주황','보라','청록','갈색','분홍'];
+
+// 보드 경로: 0~27 = 외곽(시작=0, 골인=출발전), 28~30 = 오른쪽 대각, 31~33 = 왼쪽 대각, 34=중앙
+// 각 칸: {x, y, type}
+const TOTAL_CELLS = 29; // 0~28 외곽 순환
+
+// 외곽 29칸 좌표 (0=출발/골인 직전, 1~5 아래, 5=오른쪽모서리, ... 20=위모서리, 25=왼모서리)
+// 실제 좌표 계산: 440x440 보드 기준
+const PAD = 56;
+const SZ = 660;
+const STEP = (SZ - PAD*2) / 5; // 109.6
+
+function pt(x,y){ return {x: PAD + x*STEP, y: PAD + y*STEP}; }
+
+// 외곽 경로 (0~28): 시계방향, 0=출발(우하)
+const outerPath = [
+  pt(5,5), // 0: 출발 / 도착
+  pt(4,5), pt(3,5), pt(2,5), pt(1,5), // 1~4
+  pt(0,5), // 5: 왼하 모서리
+  pt(0,4), pt(0,3), pt(0,2), pt(0,1), // 6~9
+  pt(0,0), // 10: 왼상 모서리
+  pt(1,0), pt(2,0), pt(3,0), pt(4,0), // 11~14
+  pt(5,0), // 15: 오른상 모서리
+  pt(5,1), pt(5,2), pt(5,3), pt(5,4), // 16~19
+  // 0으로 돌아옴 → 실제 0이 골인
+];
+// outerPath[0] = 출발/도착
+// 총 20칸 외곽
+
+// 지름길: 오른상(15) → 중앙(특수25) → 왼하(5)
+// 지름길: 왼상(10) → 중앙 → (합류)
+
+// 간략화: 보드 경로를 배열로 정의
+// pos: 0=대기, 1~20=외곽, 21~23=우하 대각, 24=중앙, 25~27=좌상 대각, 28~30=우상 대각, 99=완료
+// 실제 이동 로직용 경로맵
+
+const CENTER = {x: PAD + 2.5*STEP, y: PAD + 2.5*STEP};
+
+// 외곽 20칸 (0=출발지점 바로 전=도착점, 1=첫번째...)
+// 외곽을 20칸으로 설정: 각 변 5칸 × 4변
+const OUTER = [];
+// 아래변: 오른 → 왼 (출발=0은 오른쪽하단)
+for(let i=0;i<5;i++) OUTER.push({x: PAD+(5-i)*STEP, y: PAD+5*STEP}); // 0..4 (0=시작위치직후)
+// 왼변: 아래 → 위
+for(let i=0;i<5;i++) OUTER.push({x: PAD, y: PAD+(5-i)*STEP});   // 5..9 (5=왼하 모서리)
+// 위변: 왼 → 오른
+for(let i=0;i<5;i++) OUTER.push({x: PAD+i*STEP, y: PAD});       // 10..14 (10=왼상 모서리)
+// 오른변: 위 → 아래
+for(let i=0;i<5;i++) OUTER.push({x: PAD+5*STEP, y: PAD+i*STEP}); // 15..19 (15=오른상 모서리)
+// OUTER[0] = 출발 직후 1번째 칸 (사실상 pos=1에 대응)
+// pos 0 = 대기
+// pos 1~20 = OUTER[0]~OUTER[19]
+// pos 21 = 완료
+
+// 특수 경로
+// 오른하 모서리: OUTER[0] 이전(= 출발점, pos=0대기 아님, pos=20 or "start")
+// 이 게임에서는 아래와 같이 단순화:
+//   pos=0: 대기(출발 전)
+//   pos=1..20: 외곽 20칸
+//   지름길: pos=5(왼하)에서 shortcut, pos=10(왼상)에서 shortcut, pos=15(오른상)에서 shortcut
+//   pos=21...: shortcut 경로
+//   pos=99: 완료
+
+// 지름길 경로 정의
+// shortcut1: 오른하(출발점 = pos 전)는 일반 경로
+// shortcut2: 오른상(pos=15) → 중앙(posS1) → 왼하(pos=5)에 합류
+// shortcut3: 왼상(pos=10) → 중앙(posS1) 에서 합류
+
+// 보드 시각화용 좌표
+function outerCoord(pos) {
+  if(pos === 0) return {x: PAD+5*STEP, y: PAD+5*STEP}; // 출발점
+  if(pos >= 1 && pos <= 20) return OUTER[pos-1];
+  return null;
+}
+
+// shortcut 경로 (pos >= 30)
+// 30~32: 오른상 지름길 (15→중간1→중간2→중앙)
+// 33~35: 왼상 지름길 (10→중간1→중간2→중앙)
+// 36~38: 중앙→왼하 방향
+const SC_RIGHT = [ // 오른상(15)에서 중앙으로
+  {x: PAD+4*STEP, y: PAD+1*STEP},
+  {x: PAD+3.5*STEP, y: PAD+1.5*STEP},
+  CENTER
+];
+const SC_LEFT = [ // 왼상(10)에서 중앙으로
+  {x: PAD+1*STEP, y: PAD+1*STEP},
+  {x: PAD+1.5*STEP, y: PAD+1.5*STEP},
+  CENTER
+];
+const SC_OUT = [ // 중앙에서 왼하(5)로
+  {x: PAD+1.5*STEP, y: PAD+3.5*STEP},
+  {x: PAD+1*STEP, y: PAD+4*STEP},
+  {x: PAD, y: PAD+5*STEP} // = OUTER[4] = pos 5
+];
+
+// ══════════════════════════════════════════
+//  게임 상태
+// ══════════════════════════════════════════
+let players = [];
+let currentPlayer = 0;
+let bonusThrows = []; // 추가 던지기 큐
+let pendingMoves = []; // 던진 결과 대기
+let throwResult = null;
+let throwDone = false;
+
+// 말: {player, id, pos, shortcut, finishCount}
+// pos: 0=대기, 1~20=외곽, 100~=지름길, 999=완료
+// shortcut: null | 'right'(15에서) | 'left'(10에서)
+
+// 지름길 좌표 계산
+// pos 100: SC_RIGHT[0], 101: SC_RIGHT[1], 102: CENTER(=SC_RIGHT[2])
+// pos 200: SC_LEFT[0], 201: SC_LEFT[1], 202: CENTER
+// pos 300: SC_OUT[0], 301: SC_OUT[1], 302: SC_OUT[2] = pos5
+
+function getPieceCoord(piece) {
+  const p = piece.pos;
+  if(p === 0) return null; // 대기
+  if(p === 999) return null; // 완료
+  if(p >= 1 && p <= 20) return OUTER[p-1];
+  if(p >= 100 && p <= 102) return SC_RIGHT[p-100];
+  if(p >= 200 && p <= 202) return SC_LEFT[p-200];
+  if(p >= 300 && p <= 302) return SC_OUT[p-300];
+  return null;
+}
+
+function movePiece(piece, steps) {
+  // 빽도: steps = -1
+  if(steps === -1) {
+    if(piece.pos === 0) return; // 대기 중엔 뒤로 못감
+    if(piece.pos >= 100 && piece.pos <= 102) {
+      const idx = piece.pos - 100;
+      if(idx === 0) { piece.pos = 15; } // 오른상으로 돌아감
+      else { piece.pos--; }
+    } else if(piece.pos >= 200 && piece.pos <= 202) {
+      const idx = piece.pos - 200;
+      if(idx === 0) { piece.pos = 10; }
+      else { piece.pos--; }
+    } else if(piece.pos >= 300 && piece.pos <= 302) {
+      const idx = piece.pos - 300;
+      if(idx === 0) {
+        // 중앙에서 뒤로 → 어느 쪽? right 쪽으로
+        piece.pos = 102;
+      } else { piece.pos--; }
+    } else {
+      piece.pos = piece.pos - 1;
+      if(piece.pos < 1) piece.pos = 20;
+    }
+    return;
+  }
+
+  for(let i=0; i<steps; i++) {
+    if(piece.pos === 999) break;
+    if(piece.pos === 0) {
+      // 출발
+      piece.pos = 1;
+    } else if(piece.pos === 15 && piece.shortcut === 'right') {
+      // 오른상에서 지름길 진입
+      piece.pos = 100;
+    } else if(piece.pos === 10 && piece.shortcut === 'left') {
+      piece.pos = 200;
+    } else if(piece.pos === 102 || piece.pos === 202) {
+      // 중앙 → 왼하 방향 지름길
+      piece.pos = 300;
+      piece.shortcut = null;
+    } else if(piece.pos >= 100 && piece.pos <= 101) {
+      piece.pos++;
+    } else if(piece.pos >= 200 && piece.pos <= 201) {
+      piece.pos++;
+    } else if(piece.pos >= 300 && piece.pos <= 301) {
+      piece.pos++;
+    } else if(piece.pos === 302) {
+      // SC_OUT[2] = pos5 합류
+      piece.pos = 5;
+      piece.shortcut = null;
+    } else {
+      // 외곽
+      piece.pos++;
+      if(piece.pos > 20) {
+        // 완료!
+        piece.pos = 999;
+        break;
+      }
+      // 지름길 진입 체크 (pos=15, pos=10은 shortcut 플래그로 다음 이동 시)
+    }
+  }
+}
+
+// ══════════════════════════════════════════
+//  초기화
+// ══════════════════════════════════════════
+let selectedCount = 2;
+const PIECE_COUNT = 4;
+
+window.onload = function() {
+  // 인원 수 버튼
+  const grid = document.getElementById('cnt-grid');
+  for(let i=2;i<=8;i++){
+    const b = document.createElement('button');
+    b.className = 'cnt-btn' + (i===2?' selected':'');
+    b.textContent = i+'명';
+    b.onclick = () => selectCount(i);
+    grid.appendChild(b);
+  }
+  selectCount(2);
+};
+
+function selectCount(n) {
+  selectedCount = n;
+  document.querySelectorAll('.cnt-btn').forEach(b=>{
+    b.classList.toggle('selected', b.textContent === n+'명');
+  });
+  const ni = document.getElementById('name-inputs');
+  ni.innerHTML = '';
+  for(let i=0;i<n;i++){
+    const div = document.createElement('div');
+    div.style.display='flex'; div.style.alignItems='center'; div.style.gap='8px';
+    const dot = document.createElement('span');
+    dot.className='team-color-dot';
+    dot.style.background=COLORS[i];
+    const inp = document.createElement('input');
+    inp.type='text';
+    inp.placeholder=(i+1)+'번 플레이어 이름';
+    inp.value='플레이어 '+(i+1);
+    inp.id='pname-'+i;
+    div.appendChild(dot);
+    div.appendChild(inp);
+    ni.appendChild(div);
+  }
+}
+
+function startGame() {
+  players = [];
+  for(let i=0;i<selectedCount;i++){
+    const name = document.getElementById('pname-'+i).value.trim() || ('플레이어 '+(i+1));
+    const pieces = [];
+    for(let j=0;j<PIECE_COUNT;j++){
+      pieces.push({player:i, id:j, pos:0, shortcut:null, stackedWith:[]});
+    }
+    players.push({name, color:COLORS[i], colorName:COLOR_NAMES[i], pieces, finished:0});
+  }
+  currentPlayer = 0;
+  bonusThrows = [];
+  pendingMoves = [];
+  throwResult = null;
+  throwDone = false;
+
+  document.getElementById('setup-screen').classList.remove('active');
+  document.getElementById('game-screen').classList.add('active');
+  document.getElementById('top-bar').style.display = 'flex';
+
+  drawBoard();
+  updateUI();
+  addLog('게임 시작! 총 '+selectedCount+'명');
+}
+
+function goSetup() {
+  document.getElementById('setup-screen').classList.add('active');
+  document.getElementById('game-screen').classList.remove('active');
+  document.getElementById('top-bar').style.display = 'none';
+  document.getElementById('win-modal').classList.remove('open');
+}
+
+// ══════════════════════════════════════════
+//  윷 던지기
+// ══════════════════════════════════════════
+const YUT_NAMES = ['빽도','도','개','걸','윷','모'];
+const YUT_MOVES = [-1, 1, 2, 3, 4, 5];
+const YUT_COLORS = ['#e74c3c','#f39c12','#f8c94f','#2ecc71','#3498db','#9b59b6'];
+
+// ── SVG 윷 막대 하나 그리기 ──
+// cx,cy = 중심, angle = 기울기(rad), flat = 엎어진 면
+function drawStickSVG(svg, cx, cy, angle, flat, alpha) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const W = 36, H = 120, R = 18;
+  const g = document.createElementNS(ns, 'g');
+  g.setAttribute('transform', `translate(${cx},${cy}) rotate(${angle*180/Math.PI})`);
+  g.setAttribute('opacity', alpha);
+
+  // 그림자
+  const sh = document.createElementNS(ns, 'rect');
+  sh.setAttribute('x', -W/2+4); sh.setAttribute('y', -H/2+4);
+  sh.setAttribute('width', W); sh.setAttribute('height', H);
+  sh.setAttribute('rx', R); sh.setAttribute('fill', 'rgba(0,0,0,0.4)');
+  g.appendChild(sh);
+
+  // 몸통
+  const body = document.createElementNS(ns, 'rect');
+  body.setAttribute('x', -W/2); body.setAttribute('y', -H/2);
+  body.setAttribute('width', W); body.setAttribute('height', H);
+  body.setAttribute('rx', R);
+  body.setAttribute('fill', flat ? '#d4a051' : '#4a2c1a');
+  g.appendChild(body);
+
+  // 하이라이트 (옆면 느낌)
+  const hi = document.createElementNS(ns, 'rect');
+  hi.setAttribute('x', -W/2+4); hi.setAttribute('y', -H/2+6);
+  hi.setAttribute('width', 8); hi.setAttribute('height', H-12);
+  hi.setAttribute('rx', 4);
+  hi.setAttribute('fill', flat ? 'rgba(255,230,150,0.45)' : 'rgba(255,255,255,0.1)');
+  g.appendChild(hi);
+
+  // 평면/둥근 면 표시 텍스트
+  const lbl = document.createElementNS(ns, 'text');
+  lbl.setAttribute('x', 0); lbl.setAttribute('y', 5);
+  lbl.setAttribute('text-anchor', 'middle');
+  lbl.setAttribute('font-size', '20');
+  lbl.setAttribute('font-weight', 'bold');
+  lbl.setAttribute('fill', flat ? '#7a4a10' : '#c8a060');
+  lbl.textContent = flat ? '앞' : '뒤';
+  g.appendChild(lbl);
+
+  svg.appendChild(g);
+  return g;
+}
+
+// ── 파티클 효과 ──
+function spawnParticles(svg, result) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const color = YUT_COLORS[result];
+  const cx = 250, cy = 250;
+  for(let i=0; i<20; i++) {
+    const c = document.createElementNS(ns, 'circle');
+    const angle = (i/20)*Math.PI*2;
+    const dist = 80 + Math.random()*120;
+    const tx = cx + Math.cos(angle)*dist;
+    const ty = cy + Math.sin(angle)*dist;
+    const r = 4+Math.random()*6;
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy);
+    c.setAttribute('r', r);
+    c.setAttribute('fill', color);
+    c.setAttribute('opacity', '0.9');
+    svg.appendChild(c);
+
+    const anim1 = document.createElementNS(ns, 'animateTransform');
+    anim1.setAttribute('attributeName','transform');
+    anim1.setAttribute('type','translate');
+    anim1.setAttribute('from','0 0');
+    anim1.setAttribute('to',`${tx-cx} ${ty-cy}`);
+    anim1.setAttribute('dur','0.6s');
+    anim1.setAttribute('fill','freeze');
+    c.appendChild(anim1);
+
+    const anim2 = document.createElementNS(ns, 'animate');
+    anim2.setAttribute('attributeName','opacity');
+    anim2.setAttribute('from','0.9');
+    anim2.setAttribute('to','0');
+    anim2.setAttribute('dur','0.6s');
+    anim2.setAttribute('fill','freeze');
+    c.appendChild(anim2);
+
+    anim1.beginElement();
+    anim2.beginElement();
+  }
+}
+
+// ── 결과 확정 ──
+function computeResult() {
+  const r = Math.random();
+  if(r < 0.04) return 4;       // 윷
+  else if(r < 0.08) return 5;  // 모
+  else if(r < 0.13) return 0;  // 빽도
+  else if(r < 0.38) return 1;  // 도
+  else if(r < 0.75) return 2;  // 개
+  else return 3;                // 걸
+}
+
+function throwYut() {
+  document.getElementById('throw-btn').disabled = true;
+
+  const result = computeResult();
+  const flats = result === 0 ? 1 : (result === 4 ? 4 : result === 5 ? 0 : result);
+
+  const overlay = document.getElementById('throw-overlay');
+  const svg = document.getElementById('throw-svg');
+  const overlayResult = document.getElementById('overlay-result');
+  const overlaySub = document.getElementById('overlay-sub');
+
+  // 초기화
+  svg.innerHTML = '';
+  overlayResult.textContent = '';
+  overlayResult.classList.remove('show');
+  overlaySub.textContent = '';
+  overlaySub.classList.remove('show');
+  overlay.classList.add('open');
+
+  // 윷 4개 초기 위치
+  const positions = [
+    {cx:155, cy:160}, {cx:250, cy:130},
+    {cx:345, cy:160}, {cx:295, cy:260}
+  ];
+  const stickEls = [];
+
+  // 초기 랜덤 상태로 그리기
+  positions.forEach((p, i) => {
+    const g = drawStickSVG(svg, p.cx, p.cy, (Math.random()*2-1)*0.8, Math.random()>0.5, 0.95);
+    stickEls.push({el: g, cx: p.cx, cy: p.cy});
+  });
+
+  // ── 1단계: 굴리기 애니메이션 (CSS keyframes 대신 rAF 루프) ──
+  const SPIN_DURATION = 900; // ms
+  const start = performance.now();
+  let settled = false;
+
+  function spinFrame(now) {
+    const elapsed = now - start;
+    const t = Math.min(elapsed / SPIN_DURATION, 1);
+    // easeOut
+    const ease = 1 - Math.pow(1-t, 3);
+
+    svg.innerHTML = '';
+
+    positions.forEach((p, i) => {
+      // 각 막대마다 다른 궤적
+      const phase = i * Math.PI * 0.5;
+      const spinAngle = (1-ease) * (Math.PI*4 + phase) * (i%2===0?1:-1);
+      const scatter = (1-ease) * 40;
+      const ox = Math.cos(phase*2)*scatter;
+      const oy = Math.sin(phase*2)*scatter;
+
+      // 결과에 따른 최종 면
+      const isFinal = i < flats;
+      // 아직 spinning → 랜덤, 정착 직전 → 결과
+      const showFlat = t > 0.7 ? isFinal : (Math.random()>0.5);
+
+      drawStickSVG(svg, p.cx+ox, p.cy+oy, spinAngle, showFlat, 0.9+ease*0.1);
+    });
+
+    if(t < 1) {
+      requestAnimationFrame(spinFrame);
+    } else if(!settled) {
+      settled = true;
+      showFinalState(svg, positions, flats, result, overlayResult, overlaySub);
+    }
+  }
+  requestAnimationFrame(spinFrame);
+}
+
+function showFinalState(svg, positions, flats, result, overlayResult, overlaySub) {
+  svg.innerHTML = '';
+
+  // 결과 막대 최종 배치
+  positions.forEach((p, i) => {
+    drawStickSVG(svg, p.cx, p.cy, (Math.random()*0.25-0.125), i < flats, 1);
+  });
+
+  // 파티클
+  spawnParticles(svg, result);
+
+  // 결과 텍스트 표시
+  const moveStr = YUT_MOVES[result] === -1 ? '(-1칸)' : `(+${YUT_MOVES[result]}칸)`;
+  const isBig = result === 4 || result === 5;
+  overlayResult.textContent = YUT_NAMES[result];
+  overlayResult.style.color = YUT_COLORS[result];
+  overlayResult.style.textShadow = `0 0 40px ${YUT_COLORS[result]}88`;
+  setTimeout(() => overlayResult.classList.add('show'), 30);
+
+  overlaySub.textContent = moveStr + (isBig ? ' 🎉 한 번 더!' : '');
+  setTimeout(() => overlaySub.classList.add('show'), 80);
+
+  // 1.5초 후 오버레이 닫고 게임 진행
+  setTimeout(() => {
+    document.getElementById('throw-overlay').classList.remove('open');
+    resolveThrow(result);
+  }, 1500);
+}
+
+function resolveThrow(result) {
+  throwResult = result;
+  throwDone = true;
+
+  // 사이드패널 윷 막대 결과 표시
+  const display = document.getElementById('yut-display');
+  display.innerHTML = '';
+  const flats = result === 0 ? 1 : (result === 4 ? 4 : result === 5 ? 0 : result);
+  for(let i=0;i<4;i++){
+    const s = document.createElement('div');
+    s.className='yut-stick '+(i<flats?'flat':'round');
+    s.style.transform='rotate('+(Math.random()*10-5)+'deg)';
+    display.appendChild(s);
+  }
+
+  const badge = document.getElementById('result-badge');
+  badge.textContent = YUT_NAMES[result] + (YUT_MOVES[result]===-1?' (-1)':' (+'+YUT_MOVES[result]+')');
+
+  const isBonusTurn = result === 4 || result === 5;
+  if(isBonusTurn) bonusThrows.push(result);
+
+  updateTurnSub('말을 선택하세요');
+  showPieceSelection();
+  updateBonusQueue();
+  document.getElementById('throw-btn').disabled = false;
+}
+
+// ══════════════════════════════════════════
+//  업기 헬퍼: 한 칸의 "리더" 말 목록 반환
+//  (업힌 말들은 leader.stackedWith[] 에 pieceIdx 저장)
+// ══════════════════════════════════════════
+
+// 말 데이터: { pos, shortcut, stackedWith:[] }
+// stackedWith: 같은 칸에 업혀있는 내 다른 말들의 인덱스 목록
+// 리더 = stackedWith 를 가진 말 중 가장 먼저 그 칸에 온 말(첫 번째 말)
+// 선택 UI: 리더 말만 보여주고, 리더 선택 시 stackedWith 포함 전체 이동
+
+function getLeaderPieces(player) {
+  // 플레이어 말 중 "리더" 역할(자신이 stackedWith 를 가진 말 OR 혼자 있는 말) 목록 반환
+  // stackedWith 에 실려있는 말은 리더가 아님
+  const ridingSet = new Set();
+  player.pieces.forEach(p => {
+    (p.stackedWith || []).forEach(i => ridingSet.add(i));
+  });
+  return player.pieces.map((p, i) => ({piece: p, idx: i, isLeader: !ridingSet.has(i)}))
+    .filter(({piece, isLeader}) => isLeader && piece.pos !== 999);
+}
+
+function posKey(piece) {
+  // 위치를 문자열 키로
+  return piece.pos + ':' + (piece.shortcut || '');
+}
+
+// ══════════════════════════════════════════
+//  말 선택
+// ══════════════════════════════════════════
+function showPieceSelection() {
+  const player = players[currentPlayer];
+  const card = document.getElementById('piece-card');
+  const list = document.getElementById('piece-list');
+  card.style.display = 'block';
+  list.innerHTML = '';
+  document.getElementById('throw-btn').disabled = true;
+
+  const steps = YUT_MOVES[throwResult];
+  const leaders = getLeaderPieces(player);
+
+  leaders.forEach(({piece, idx}) => {
+    if(steps === -1 && piece.pos === 0) return; // 대기 중엔 뒤로 못감
+
+    const btn = document.createElement('button');
+    btn.className = 'piece-btn';
+    btn.style.background = player.color + '22';
+    btn.style.borderColor = player.color;
+    btn.style.color = player.color;
+
+    const stackCount = (piece.stackedWith || []).length;
+    let posLabel = piece.pos === 0 ? '대기' : '칸 ' + piece.pos;
+    let label = '말' + (idx+1);
+    if(stackCount > 0) label += '+' + stackCount + '마리 묶음';
+    btn.textContent = label + ' (' + posLabel + ')';
+    btn.onclick = () => selectPiece(idx);
+    list.appendChild(btn);
+  });
+
+  if(list.children.length === 0) {
+    // 빽도인데 이동 가능한 말이 없는 경우
+    const msg = document.createElement('div');
+    msg.style.color = '#aaa';
+    msg.style.fontSize = '0.9rem';
+    msg.style.textAlign = 'center';
+    msg.textContent = '이동 가능한 말이 없습니다. 턴을 넘깁니다.';
+    list.appendChild(msg);
+    setTimeout(() => {
+      document.getElementById('piece-card').style.display = 'none';
+      throwResult = null; throwDone = false;
+      nextTurn();
+      drawBoard(); updateUI();
+    }, 1500);
+  }
+}
+
+function selectPiece(pieceIdx) {
+  const player = players[currentPlayer];
+  const piece = player.pieces[pieceIdx];
+  const steps = YUT_MOVES[throwResult];
+
+  // 이 말과 함께 업혀있는 모든 말 인덱스
+  const allIdxs = [pieceIdx, ...(piece.stackedWith || [])];
+
+  // 지름길 진입 여부: 리더 말 기준으로 결정
+  if(piece.pos === 15) piece.shortcut = 'right';
+  else if(piece.pos === 10) piece.shortcut = 'left';
+
+  // 업힌 말들도 shortcut 동기화
+  allIdxs.forEach(i => {
+    player.pieces[i].shortcut = piece.shortcut;
+  });
+
+  // 리더 말 이동
+  movePiece(piece, steps);
+
+  // 업힌 말들도 같은 위치·shortcut으로 동기화
+  allIdxs.slice(1).forEach(i => {
+    player.pieces[i].pos = piece.pos;
+    player.pieces[i].shortcut = piece.shortcut;
+  });
+
+  // ── 같은 팀 말 업기 체크 ──
+  // 이동 후, 같은 칸에 있는 아군 말(다른 묶음 리더)이 있으면 흡수
+  if(piece.pos !== 999 && piece.pos !== 0) {
+    player.pieces.forEach((other, oi) => {
+      if(allIdxs.includes(oi)) return; // 이미 이 묶음
+      if(other.pos !== piece.pos || other.pos === 0 || other.pos === 999) return;
+      // other 도 리더인지 확인 (다른 묶음의 리더거나 혼자)
+      const otherIsRiding = player.pieces.some((p, pi) =>
+        !allIdxs.includes(pi) && pi !== oi && (p.stackedWith || []).includes(oi)
+      );
+      if(otherIsRiding) return; // 이미 다른 묶음에 올라탄 말이면 건드리지 않음
+
+      // other 와 other.stackedWith 를 이 묶음으로 흡수
+      const absorbIdxs = [oi, ...(other.stackedWith || [])];
+      absorbIdxs.forEach(ai => {
+        player.pieces[ai].stackedWith = [];
+      });
+      piece.stackedWith = [...(piece.stackedWith || []), ...absorbIdxs];
+      // shortcut 동기화
+      absorbIdxs.forEach(ai => { player.pieces[ai].shortcut = piece.shortcut; });
+
+      addLog('🔗 ' + player.name + ' 말' + (pieceIdx+1) + '이 말' + (oi+1) + '에 업혔습니다! (' + piece.stackedWith.length + '마리 묶음)');
+    });
+  }
+
+  // ── 완료 처리 ──
+  if(piece.pos === 999) {
+    const finishedCount = allIdxs.length;
+    player.finished += finishedCount;
+    // stackedWith 초기화
+    allIdxs.forEach(i => { player.pieces[i].stackedWith = []; });
+    addLog('🎉 ' + player.name + ' 말 ' + finishedCount + '마리 골인! (' + player.finished + '/' + PIECE_COUNT + ')');
+    if(player.finished >= PIECE_COUNT) {
+      showWin(player);
+      return;
+    }
+  } else {
+    const stackCount = allIdxs.length;
+    addLog(player.name + ': 말' + (pieceIdx+1) + (stackCount > 1 ? '외 ' + (stackCount-1) + '마리' : '') + ' → ' + YUT_NAMES[throwResult]);
+  }
+
+  // ── 상대 말 잡기 ──
+  let captured = false;
+  if(piece.pos !== 999 && piece.pos !== 0) {
+    players.forEach((op, opi) => {
+      if(opi === currentPlayer) return;
+      // 상대 말 중 같은 칸 리더 찾기
+      op.pieces.forEach((op2, oi2) => {
+        if(op2.pos !== piece.pos || op2.pos === 0 || op2.pos === 999) return;
+        // op2가 리더인지(다른 말의 stackedWith에 들어있지 않은지) 확인
+        const isRiding = op.pieces.some((p, pi) => pi !== oi2 && (p.stackedWith || []).includes(oi2));
+        if(isRiding) return;
+
+        // 이 리더와 업힌 모든 말을 대기로
+        const capturedIdxs = [oi2, ...(op2.stackedWith || [])];
+        capturedIdxs.forEach(ci => {
+          op.pieces[ci].pos = 0;
+          op.pieces[ci].shortcut = null;
+          op.pieces[ci].stackedWith = [];
+        });
+        captured = true;
+        addLog('⚔️ ' + player.name + '이 ' + op.name + '의 말 ' + capturedIdxs.length + '마리를 잡았습니다!');
+      });
+    });
+  }
+
+  document.getElementById('piece-card').style.display = 'none';
+
+  if(captured) {
+    bonusThrows.push('capture');
+    addLog('💫 상대 말을 잡아 한 번 더!');
+  }
+
+  throwResult = null;
+  throwDone = false;
+
+  if(bonusThrows.length > 0) {
+    bonusThrows.shift();
+    updateBonusQueue();
+    document.getElementById('throw-btn').disabled = false;
+    updateTurnSub('한 번 더 던지세요!');
+  } else {
+    nextTurn();
+  }
+
+  drawBoard();
+  updateUI();
+}
+
+function nextTurn() {
+  currentPlayer = (currentPlayer + 1) % players.length;
+  throwResult = null;
+  throwDone = false;
+  document.getElementById('throw-btn').disabled = false;
+  document.getElementById('result-badge').textContent = '';
+  document.getElementById('yut-display').innerHTML = '<span style="color:#666;font-size:.85rem;">던지기 전</span>';
+  updateTurnSub('윷을 던지세요');
+}
+
+// ══════════════════════════════════════════
+//  UI 업데이트
+// ══════════════════════════════════════════
+function updateUI() {
+  const p = players[currentPlayer];
+  const nameEl = document.getElementById('turn-name');
+  nameEl.textContent = p.name;
+  nameEl.style.color = p.color;
+  updateScoreBoard();
+}
+
+function updateTurnSub(text) {
+  document.getElementById('turn-sub').textContent = text;
+}
+
+function updateBonusQueue() {
+  const el = document.getElementById('bonus-queue');
+  el.innerHTML = bonusThrows.length > 0
+    ? '<span style="color:#aaa;font-size:.8rem;">보너스:</span>'
+    : '';
+  bonusThrows.forEach(b => {
+    const span = document.createElement('span');
+    span.className = 'bonus-badge';
+    span.textContent = b === 'capture' ? '잡기 보너스' : YUT_NAMES[b]+' 보너스';
+    el.appendChild(span);
+  });
+}
+
+function updateScoreBoard() {
+  const el = document.getElementById('score-board');
+  el.innerHTML = '';
+  players.forEach((p,i) => {
+    const row = document.createElement('div');
+    row.className='score-row';
+    const isActive = i === currentPlayer;
+    row.innerHTML = `
+      <div class="score-name">
+        <div class="color-dot" style="background:${p.color}"></div>
+        <span style="color:${isActive?p.color:'inherit'}; font-weight:${isActive?'bold':'normal'}">${p.name}</span>
+        ${isActive?'<span style="font-size:.7rem; color:'+p.color+'">▶</span>':''}
+      </div>
+      <span class="score-val">${p.finished}/${PIECE_COUNT}</span>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function addLog(msg) {
+  const el = document.getElementById('game-log');
+  const div = document.createElement('div');
+  div.className = 'log-item';
+  div.textContent = msg;
+  el.insertBefore(div, el.firstChild);
+  while(el.children.length > 20) el.removeChild(el.lastChild);
+}
+
+// ══════════════════════════════════════════
+//  보드 그리기
+// ══════════════════════════════════════════
+function drawBoard() {
+  const svg = document.getElementById('board-svg');
+  svg.innerHTML = '';
+
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(ns, tag);
+    for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+    (parent||svg).appendChild(e);
+    return e;
+  }
+
+  // 배경
+  el('rect',{x:0,y:0,width:660,height:660,fill:'#0d1b2a',rx:20});
+
+  // 외곽 사각형 선
+  el('rect',{x:PAD,y:PAD,width:5*STEP,height:5*STEP,fill:'none',stroke:'#2a4a6e',strokeWidth:2,rx:4});
+
+  // 대각선 (지름길)
+  el('line',{x1:PAD,y1:PAD,x2:PAD+5*STEP,y2:PAD+5*STEP,stroke:'#2a4a6e',strokeWidth:1.5,strokeDasharray:'6,4'});
+  el('line',{x1:PAD+5*STEP,y1:PAD,x2:PAD,y2:PAD+5*STEP,stroke:'#2a4a6e',strokeWidth:1.5,strokeDasharray:'6,4'});
+
+  // 외곽 칸 그리기
+  const OUTER_COORDS = [];
+  // 외곽 20칸: 시작점(출발)= pos0 = 오른하 (PAD+5*STEP, PAD+5*STEP)
+  // pos 1~5: 아래변 (오른→왼)
+  // pos 6~10: 왼변 (아래→위)
+  // pos 11~15: 위변 (왼→오른)
+  // pos 16~20: 오른변 (위→아래) ... 20 = 출발 직전
+
+  // 출발점
+  const START = {x: PAD+5*STEP, y: PAD+5*STEP};
+
+  // 모든 외곽칸 좌표 (0=출발, 1~20=순환)
+  const allOuter = [START, ...OUTER];
+
+  // 칸 원 그리기
+  allOuter.forEach((c,i) => {
+    const isCorner = [0,5,10,15].includes(i) || i === 0;
+    const r = isCorner ? 22 : 16;
+    const fill = i===0 ? '#1a4a1a' : ([5,10,15].includes(i) ? '#1a2a4a' : '#0f2035');
+    const stroke = i===0 ? '#2ecc71' : ([5,10,15].includes(i) ? '#f8c94f' : '#2a4a6e');
+    el('circle',{cx:c.x,cy:c.y,r,fill,stroke,strokeWidth:2.5});
+
+    // 라벨
+    let lbl = '';
+    if(i===0) lbl='출발';
+    else if([5,10,15].includes(i)) lbl = '';
+    const t = el('text',{x:c.x,y:c.y+1,'text-anchor':'middle','dominant-baseline':'middle',fill:'#aaa','font-size':i===0?13:11});
+    t.textContent = i===0?'출발':i;
+  });
+
+  // 중앙 원
+  el('circle',{cx:CENTER.x,cy:CENTER.y,r:22,fill:'#2a1d00',stroke:'#f8c94f',strokeWidth:2.5});
+  const ct = el('text',{x:CENTER.x,y:CENTER.y+1,'text-anchor':'middle','dominant-baseline':'middle',fill:'#f8c94f','font-size':13});
+  ct.textContent = '중앙';
+
+  // SC_RIGHT 중간 칸
+  SC_RIGHT.forEach((c,i)=>{
+    if(i<2){
+      el('circle',{cx:c.x,cy:c.y,r:12,fill:'#0f2035',stroke:'#2a4a6e',strokeWidth:2});
+    }
+  });
+  SC_LEFT.forEach((c,i)=>{
+    if(i<2){
+      el('circle',{cx:c.x,cy:c.y,r:12,fill:'#0f2035',stroke:'#2a4a6e',strokeWidth:2});
+    }
+  });
+  SC_OUT.forEach((c,i)=>{
+    if(i<2){
+      el('circle',{cx:c.x,cy:c.y,r:12,fill:'#0f2035',stroke:'#2a4a6e',strokeWidth:2});
+    }
+  });
+
+  // 말 그리기 — 묶음(업기) 단위로 렌더링
+  // 각 칸별로 "리더" 말만 수집
+  const slotMap = {}; // key → [{playerIdx, leaderPieceIdx, stackSize}]
+
+  players.forEach((player, pi) => {
+    const ridingSet = new Set();
+    player.pieces.forEach(p => (p.stackedWith||[]).forEach(i => ridingSet.add(i)));
+
+    player.pieces.forEach((piece, pj) => {
+      if(ridingSet.has(pj)) return; // 업힌 말은 스킵
+      if(piece.pos === 0 || piece.pos === 999) return;
+      const coord = getPieceCoord(piece);
+      if(!coord) return;
+      const key = Math.round(coord.x)+','+Math.round(coord.y);
+      if(!slotMap[key]) slotMap[key] = {coord, groups:[]};
+      slotMap[key].groups.push({player, pi, pj, stackSize: 1+(piece.stackedWith||[]).length});
+    });
+  });
+
+  for(const [key, {coord, groups}] of Object.entries(slotMap)) {
+    const {x: cx, y: cy} = coord;
+    const n = groups.length;
+    groups.forEach(({player, pi, pj, stackSize}, k) => {
+      const angle = n > 1 ? (k / n) * Math.PI * 2 - Math.PI/2 : 0;
+      const offset = n > 1 ? 13 : 0;
+      const px2 = cx + Math.cos(angle)*offset;
+      const py2 = cy + Math.sin(angle)*offset;
+
+      const r = stackSize > 1 ? 16 : 12;
+      // 묶음이면 바깥 링 추가
+      if(stackSize > 1) {
+        el('circle',{cx:px2,cy:py2,r:r+3,fill:'none',stroke:player.color,strokeWidth:2.5,opacity:.6});
+      }
+      el('circle',{cx:px2,cy:py2,r,fill:player.color,stroke:'#fff',strokeWidth:2});
+      const t = el('text',{x:px2,y:py2+1,'text-anchor':'middle','dominant-baseline':'middle',fill:'#fff','font-size':stackSize>1?11:10,'font-weight':'bold'});
+      t.textContent = stackSize > 1 ? (pi+1)+'×'+stackSize : (pi+1)+'-'+(pj+1);
+    });
+  }
+
+  // 대기 말 표시 (보드 아래)
+  let waitX = PAD;
+  players.forEach((player, pi) => {
+    const waiting = player.pieces.filter(p=>p.pos===0);
+    waiting.forEach((piece, wi) => {
+      el('circle',{cx:waitX+14,cy:636,r:12,fill:player.color,stroke:'#fff',strokeWidth:1.5,opacity:0.7});
+      const t = el('text',{x:waitX+14,y:637,'text-anchor':'middle','dominant-baseline':'middle',fill:'#fff','font-size':10});
+      t.textContent = (pi+1);
+      waitX += 30;
+    });
+  });
+}
+
+// ══════════════════════════════════════════
+//  승리
+// ══════════════════════════════════════════
+function showWin(player) {
+  document.getElementById('win-title').textContent = player.name + ' 승리!';
+  document.getElementById('win-title').style.color = player.color;
+  document.getElementById('win-desc').textContent = '모든 말을 골인했습니다! 🎊';
+  document.getElementById('win-modal').classList.add('open');
+  document.getElementById('throw-btn').disabled = true;
+}
+
+// ══════════════════════════════════════════
+//  모달
+// ══════════════════════════════════════════
+function openRules() { document.getElementById('rules-modal').classList.add('open'); }
+function closeRules() { document.getElementById('rules-modal').classList.remove('open'); }
+
+// 빽도 문자열 수정 (JS의 전각 괄호 오류 수정)
+// selectPiece 함수 내 템플릿 리터럴 수정은 위에서 처리됨
+</script>
+</body>
+</html>
